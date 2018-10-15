@@ -23,12 +23,15 @@ def sigmoid_irf(a, c, d):
     return c + (1 - c) * sigmoid(a - d)
 
 
-def floored_exp_irf(a, c, d):
+def floored_exp_irf(a, c, d, l):
     """
+    Floored exponential function with parameters lambda, a and d.
 
-    :param a:
-    :param c:
-    :param d:
-    :return:
+    :param l: lambda, slope for exponential curve
+    :param a: ability: [0, 1]
+    :param d: difficulty: [0, 1]
+    :param c: guess probability
+
+    :return: the probability that the student will get the question right
     """
-    pass
+    return max(c, 1 - np.exp(-l*(a-d)))
