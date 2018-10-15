@@ -2,12 +2,13 @@
 import numpy as np
 
 
-def generate_student_matrix(skill_dist, n=100, c=10):
+def generate_student_matrix(skill_dist, n=100, c=10, correl= False):
     """
     :param skill_dist: Probability Distribution function that generates real numbers
     between [0, 1]. Distribution must depend on one variable theta between [0, 1], sampled from theta_dist
     :param n: Number of students
     :param c: Number of skills
+    :param correl: Boolean that specifies if sampling will be correlated
 
     :return: s, a generated matrix of size N x C. S_ij represents the skill of
     student i in concept j. A skill is a real number between 0 and 1, sampled
@@ -16,7 +17,7 @@ def generate_student_matrix(skill_dist, n=100, c=10):
     s = np.zeros((n, c))
     for i in range(n):
         for j in range(c):
-            s[i, j] = skill_dist()
+            s[i, j] = skill_dist(correl)
     return s
 
 
@@ -35,15 +36,23 @@ def generate_questions_matrix(difficulty_dist, q=100, c=10):
     return questions
 
 
-def normal_0_1():
+def normal_0_1(correl=False):
     """
+    :param correl: Boolean that specifies if sampling will be correlated
+
     :return: returns a number between 0 and 1 sampled from a normal distribution with mean=0.5 and variance=0.25
     """
-    while True:
-        difficulty = np.random.normal(0.5, 0.25, 1)
-        if 0 <= difficulty <= 1:
-            return difficulty
-
+    if not correl:
+        while True:
+            difficulty = np.random.normal(0.5, 0.25, 1)
+            if 0 <= difficulty <= 1:
+                return difficulty
+    else:
+        theta = np.random.normal(0.5, 0.25, 1)
+        while True:
+            difficulty = np.random.normal(theta, 0.25, 1)
+            if 0 <= difficulty <= 1:
+                return difficulty
 
 def generate_matrices(n=50, q=100, c=10):
     """
