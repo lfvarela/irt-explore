@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 class NMF():
 
-    def __init__(self, R, name, epsilon=1e-3, alpha=0.01, beta=100, verbose=False, max_k = 10):
+    def __init__(self, R, name, epsilon=1e-3, alpha=0.01, beta=100, verbose=False, max_k = 10, seed=42):
         '''
         :param R: n x m binary matrix of results (n students, m questions)
         :param name: file name from which R is gotten from, for plotting/printing purposes, s.a. 'Floored Exp Uncorrel';
@@ -13,6 +13,7 @@ class NMF():
         :param verbose: print useful messages
         :param max_k: number of k iterations, where k is the number of skills we predict
         '''
+        np.random.seed(seed)
         self.R = R.T
         self.name = name
         self.epsilon = epsilon
@@ -129,7 +130,7 @@ class NMF():
         :param ylabel: y label for plot
         :return:
         """
-        plt.plot(*zip(*tuples))
+        plt.plot(*zip(*tuples), color='c')
         plt.title(title)
         plt.xlabel(xlabel)
         plt.ylabel(ylabel)
