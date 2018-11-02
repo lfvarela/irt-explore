@@ -87,6 +87,23 @@ def generate_responses(student_matrix, questions_matrix, guess_prob, irf, *args)
                 responses[i, j] = 1
     return responses
 
+def generate_prob_responses(student_matrix, questions_matrix, guess_prob, irf, *args):
+    """
+    Generate simulated data for student responses to questions, in terms of probabilities
+    :param student_matrix: N x C matrix. s_ij is student i's ability in concept j
+    :param questions_matrix: Q x C matrix. q_ij is the difficulty of question i in concept j. Note that only one element in row i can be nonzero.
+    :param guess_prob: probability
+    :param irf: item response function used to generate responses
+    :param args: extra arguments needed for irf, if any
+    :return: Generate simulated data: N x Q matrix where m_ij = probablity that student i responds j correctly
+    """
+    responses = np.zeros((student_matrix.shape[0], questions_matrix.shape[0]))
+    for i, student in enumerate(student_matrix):
+        for j, question in enumerate(questions_matrix):
+            concept = np.nonzero(question)[0]
+            prob = irf(student[concept], guess_prob, question[concept], *args)
+            responses[i, j] = prob
+    return responses
 
 if __name__ == '__main__':
     student_matrix, questions_matrix = generate_matrices(10, 5, 2)
