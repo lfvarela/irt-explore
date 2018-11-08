@@ -32,7 +32,7 @@ def train(model, optim, epochs, Y):
     for t in range(epochs):
         # Forward pass: compute predicted y
 
-        scores = model(None)
+        scores = model(Y)
 
         # Compute and print loss
         loss = f.binary_cross_entropy(scores, Y)
