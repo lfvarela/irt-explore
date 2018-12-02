@@ -16,7 +16,7 @@ def two_param_sigmoid_irf(a, d, c):
 
 
 def floored_exp_irf(a, d, l, c):
-    return torch.max(torch.tensor(c), 1 - torch.exp(-l * (a - d)))
+    return torch.max(torch.tensor(c), 1 - torch.exp(-l  * (a - d)))
 
 
 class Sigmoid_Model(nn.Module):
@@ -139,7 +139,7 @@ class RNN_Model(nn.Module):
 
 class FE(nn.Module):
 
-    def forward(self, A, D, l, concepts, guess_prob=0.25):
+    def forward(self, A, D, l, i,concepts, guess_prob=0.25):
         """
         Calculates model predictions. Notice x, is not used. That is, our predictions don't depend on any input
         features. This is because this is really an unsupervised learning problem, we only have access to unlabeled data
@@ -149,14 +149,18 @@ class FE(nn.Module):
         :param x: Not used. Required by torch architecture.
         :return: Predictions for the entire batch.
         """
-        return floored_exp_irf(A[:, concepts[1]], D[concepts], l, guess_prob)
+        #print(A[:, concepts[1]])
+        #print(concepts[1])
+        #print(D[concepts][i])
+        #print(l.size())
+        return floored_exp_irf(A[:, concepts[1][i]], D[concepts][i], l, guess_prob)
 
 
 class RNN_Skills_Model(nn.Module):
 
     def __init__(self, concepts, num_concepts, num_questions, hidden_size, num_students=1000, num_layers=8):
         """
-        RNN: linear -> LSTM -> linear -> sigmoid
+        RNN: linear -> LSTM -> linear -> FE
         :param concepts: tuple as returned by np.nonzero on questions matrix to get indeces of concepts.
         :param hidden_size: size for hidden layer of linear layer
         :param num_students: number of students
@@ -176,18 +180,20 @@ class RNN_Skills_Model(nn.Module):
         self.l = torch.ones(self.num_students)
 
         self.inp = nn.Linear(num_students, hidden_size)
-        self.lstm = nn.LSTM(hidden_size, self.num_concepts, num_layers, dropout=0.05)  # TODO: hyperparam dropout?, other?
+        self.lstm = nn.LSTM(hidden_size, self.num_students, num_layers, dropout=0.05)  # TODO: hyperparam dropout?, other?
         self.fe = FE()
-        self.lin = nn.Linear(hidden_size, num_students)
+        self.lin = nn.Linear(1, num_concepts)
 
 
-    def step(self, input, hidden=None):
+    def step(self, input, i,hidden=None):
         input = self.inp(input.view(1, -1)).unsqueeze(1)
         output, hidden = self.lstm(input, hidden)
         skills = output.squeeze(1)
-        print(self.D.size())
-        print(skills.size())
-        output = self.fe(skills, self.D, self.l, self.concepts)
+        #print(skills.size())
+        skills = self.lin(skills.transpose(0,1))
+        #print(skills.size())
+        output = self.fe(skills, self.D, self.l,i, self.concepts)
+
         return output, hidden, skills
 
 
@@ -203,6 +209,6 @@ class RNN_Skills_Model(nn.Module):
                 input = inputs[i]
             else:
                 input = output
-            output, hidden, skills = self.step(input, hidden)
+            output, hidden, skills = self.step(input,i, hidden)
             outputs[i] = output
-        return outputs, hidden, skills
+        return outputs, hidden, skills, self.D
