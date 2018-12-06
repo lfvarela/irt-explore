@@ -122,3 +122,10 @@ def plot_train_metrics(losses, train_acc, precision):
     plt.title('Precision')
     plt.plot(precision, color='c')
     plt.show()
+
+def min_max_norm(A):
+    """
+    Min-Max normalization of an input
+    :param A: Input to be normalized
+    :return: Normalized input
+    """

@@ -158,7 +158,7 @@ class FE(nn.Module):
 
 class RNN_Skills_Model(nn.Module):
 
-    def __init__(self, concepts, num_concepts, num_questions, hidden_size, num_students=1000, num_layers=8):
+    def __init__(self, average, concepts, num_concepts, num_questions, hidden_size, num_students=1000, num_layers=8, dropout = 0.05):
         """
         RNN: linear -> LSTM -> linear -> FE
         :param concepts: tuple as returned by np.nonzero on questions matrix to get indeces of concepts.
@@ -172,15 +172,16 @@ class RNN_Skills_Model(nn.Module):
         self.hidden_size = hidden_size
         self.num_students = num_students
         self.num_concepts = num_concepts
+        self.average = average
 
         super(RNN_Skills_Model, self).__init__()
         _D = torch.zeros(self.num_questions, self.num_concepts)
         _D[concepts] = 0.1 * torch.randn(self.num_questions)
         self.D = nn.Parameter(_D, requires_grad=True)
-        self.l = torch.ones(self.num_students)
+        self.l = 10*torch.ones(self.num_students)
 
         self.inp = nn.Linear(num_students, hidden_size)
-        self.lstm = nn.LSTM(hidden_size, self.num_students, num_layers, dropout=0.05)  # TODO: hyperparam dropout?, other?
+        self.lstm = nn.LSTM(hidden_size, self.num_students, num_layers, dropout=dropout)  # TODO: hyperparam dropout?, other?
         self.fe = FE()
         self.lin = nn.Linear(1, num_concepts)
 
@@ -204,6 +205,7 @@ class RNN_Skills_Model(nn.Module):
         if steps == 0: steps = len(inputs)
         num_students = inputs.size()[1]
         outputs = Variable(torch.zeros(steps, num_students))
+        #n_skills = Variable(torch.zeros(steps, num_students,self.num_concepts))
         for i in range(steps):
             if i == 0:
                 input = inputs[i]
@@ -211,4 +213,6 @@ class RNN_Skills_Model(nn.Module):
                 input = output
             output, hidden, skills = self.step(input,i, hidden)
             outputs[i] = output
+            #if self.average:
+             #   n_skills[i] = skills
         return outputs, hidden, skills, self.D
