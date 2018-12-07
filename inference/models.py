@@ -155,10 +155,28 @@ class FE(nn.Module):
         #print(l.size())
         return floored_exp_irf(A[:, concepts[1][i]], D[concepts][i], l, guess_prob)
 
+class SIG(nn.Module):
+
+    def forward(self, A, D, i,concepts, guess_prob=0.25):
+        """
+        Calculates model predictions. Notice x, is not used. That is, our predictions don't depend on any input
+        features. This is because this is really an unsupervised learning problem, we only have access to unlabeled data
+        (the test results), and we are trying to infer matrices A and D from it, which we then use to
+        predict the test results.
+
+        :param x: Not used. Required by torch architecture.
+        :return: Predictions for the entire batch.
+        """
+        #print(A[:, concepts[1]])
+        #print(concepts[1])
+        #print(D[concepts][i])
+        #print(l.size())
+        return two_param_sigmoid_irf(A[:, concepts[1][i]], D[concepts][i], guess_prob)
+
 
 class RNN_Skills_Model(nn.Module):
 
-    def __init__(self, average, concepts, num_concepts, num_questions, hidden_size, num_students=1000, num_layers=8, dropout = 0.05):
+    def __init__(self, average, concepts, num_concepts, num_questions, hidden_size, num_students=1000, num_layers=8, dropout = 0.05, sigmoid = False):
         """
         RNN: linear -> LSTM -> linear -> FE
         :param concepts: tuple as returned by np.nonzero on questions matrix to get indeces of concepts.
@@ -173,16 +191,18 @@ class RNN_Skills_Model(nn.Module):
         self.num_students = num_students
         self.num_concepts = num_concepts
         self.average = average
+        self.sigmoid = sigmoid
 
         super(RNN_Skills_Model, self).__init__()
         _D = torch.zeros(self.num_questions, self.num_concepts)
         _D[concepts] = 0.1 * torch.randn(self.num_questions)
         self.D = nn.Parameter(_D, requires_grad=True)
-        self.l = 10*torch.ones(self.num_students)
+        self.l = 10#*torch.ones(self.num_students)
 
         self.inp = nn.Linear(num_students, hidden_size)
         self.lstm = nn.LSTM(hidden_size, self.num_students, num_layers, dropout=dropout)  # TODO: hyperparam dropout?, other?
         self.fe = FE()
+        self.irf_sig = SIG()
         self.lin = nn.Linear(1, num_concepts)
 
 
@@ -191,7 +211,10 @@ class RNN_Skills_Model(nn.Module):
         output, hidden = self.lstm(input, hidden)
         skills = output.squeeze(1)
         skills = self.lin(skills.transpose(0,1))
-        output = self.fe(skills, self.D, self.l,i, self.concepts)
+        if self.sigmoid:
+            output = self.irf_sig(skills, self.D, i, self.concepts)
+        else:
+            output = self.fe(skills, self.D, self.l,i, self.concepts)
 
         return output, hidden, skills
 
