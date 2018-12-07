@@ -3,14 +3,24 @@ import torch
 import torch.nn.functional as f
 import matplotlib.pyplot as plt
 
+
 def calc_acc(preds, targets):
     return (targets.eq(preds.float()).sum().float() / (targets.shape[0] * targets.shape[1])).item()
+
 
 def calc_precision(preds, targets):
     return ((targets.int() & preds).sum().float() / preds.sum().float()).item()
 
+
 def rmse(A, B):
-    return torch.sqrt(torch.sum((A - B)**2).float() / (A.shape[0] * A.shape[1])).item()
+    if isinstance(A, torch.Tensor):
+        return torch.sqrt(torch.sum((A - B)**2).float() / (A.shape[0] * A.shape[1])).item()
+    return np.sqrt(np.mean((A - B)**2))
+
+
+def min_max_normalize(A):
+    return (A - A.min()) / (A.max() - A.min() + 1e-7)
+
 
 def train(model, optim, epochs, Y):
     """
@@ -28,6 +38,7 @@ def train(model, optim, epochs, Y):
     train_acc = []
     precision = []
 
+    model.train()
 
     for t in range(epochs):
         # Forward pass: compute predicted y

@@ -1,8 +1,9 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as f
-from torch.autograd import Variable
 import numpy as np
+import torch.nn.functional as f
+import utils
+from torch.autograd import Variable
 
 def two_param_sigmoid_irf(a, d, c):
     """
@@ -17,6 +18,10 @@ def two_param_sigmoid_irf(a, d, c):
 
 def floored_exp_irf(a, d, l, c):
     return torch.max(torch.tensor(c), 1 - torch.exp(-l  * (a - d)))
+
+
+def flatten(x):
+    return x.view(-1)
 
 
 class Sigmoid_Model(nn.Module):
@@ -70,9 +75,7 @@ class FE_Model(nn.Module):
         super(FE_Model, self).__init__()
         self.A = nn.Parameter(0.1 * torch.randn(num_students, num_concepts), requires_grad=True)
         _D = torch.zeros(num_questions, num_concepts)
-        print(concepts)
         _D[concepts] = 0.1 * torch.randn(num_questions)
-        print(_D[concepts])
         self.D = nn.Parameter(_D, requires_grad=True)
         self.concepts = concepts
         self.guess_prob = guess_prob
@@ -91,8 +94,86 @@ class FE_Model(nn.Module):
         return floored_exp_irf(self.A[:, self.concepts[1]], self.D[self.concepts], self.l, self.guess_prob)
 
 
+# This class was taken from https://discuss.pytorch.org/t/list-of-nn-module-in-a-nn-module/219/3
+# All credit to Adam Paszke
+class AttrProxy(object):
+    """Translates index lookups into attribute lookups."""
+    def __init__(self, module, prefix):
+        self.module = module
+        self.prefix = prefix
 
-    
+    def __getitem__(self, i):
+        return getattr(self.module, self.prefix + str(i))
+
+
+# TODO: Think about adding bias
+class NN_IRF(nn.Module):
+    def __init__(self, num_students, num_questions, num_concepts, layers):
+        """
+        Initializes an NN IRF model.
+
+        :param num_students: The number of students.
+        :param num_questions: The number of questions.
+        :param num_concepts: The number of concepts.
+        :param layers: A list holding the number of hidden units for the ith layer. The list can hold a number p between
+        0 and 1, exclusive, to signify a  dropout layer with drop probability p. Note layers[-1] should equal the output
+        size.
+        """
+        super(NN_IRF, self).__init__()
+        self.input_size = (num_students + num_questions)*num_concepts
+        self.output_shape = (num_students, num_questions)
+
+        self.A = nn.Parameter(0.1 * torch.randn(num_students, num_concepts), requires_grad=True)
+        self.D = nn.Parameter(0.1 * torch.randn(num_questions, num_concepts), requires_grad=True)
+
+        self.num_layers = len(layers)
+        prev_out = self.input_size
+        for i in range(self.num_layers):
+            if layers[i] < 1:  # dropout layer
+               self.add_module('l_' + str(i), nn.Dropout(layers[i]))
+            else:
+                self.add_module('l_' + str(i), nn.Linear(prev_out, layers[i]))
+                prev_out = layers[i]
+        self.layers = AttrProxy(self, 'l_')
+
+
+    def forward(self, x):
+        del x
+        x = torch.cat((flatten(self.A), flatten(self.D)))
+        for i in range(self.num_layers):
+            x = f.relu(self.layers[i](x))
+        x = f.sigmoid(x)
+        # Now we reshape the output to fit the (num_students, num_questions) shape
+        return x.view(self.output_shape)
+
+
+def modal_decomp9(Y, concepts=None):
+    """
+    Infers an ability and a difficulty matrix from the given test results.
+
+    :param Y: A (num_students, num_questions) matrix of test results.
+    :param concepts: A tuple or list of length num_questions, holding the indices of the concept tested by the ith
+    question. If None, all questions test the same concept.
+
+    :return: A (num_students, num_concepts) matrix of inferred abilities, and a (num_questions, num_concepts) matrix of
+    inferred difficulties.
+    """
+    # if isinstance(Y, torch.tensor):
+    #     Y = Y.numpy()
+    # if concepts:
+    #     ks0 = np.sum(Y, axis=1)
+    #     kq0 = np.sum(Y, axis=0)
+    #     Ms = Y.dot((Y / kq0).T) / ks0
+    #     evals, evecs = np.linalg.eig(Ms)
+    #     abilities = utils.min_max_normalize(np.real(evecs[:, 1]))
+    #     Mq =
+    # else:
+    pass
+
+
+
+
+
 class RNN_Model(nn.Module):
 
     def __init__(self, hidden_size, num_students=1000, num_layers=8):
@@ -238,3 +319,100 @@ class RNN_Skills_Model(nn.Module):
         if self.average:
             skills = n_skills.mean(dim=0)
         return outputs, hidden, skills, self.D
+
+
+def modal_decomp(R):
+    """
+    Runs the modal decomposition scoring on a results matrix R. Assumes a single concept/skill is tested by the exam.
+
+    :param R: A (num_students, num_questions) numpy array, holding the results of an exam
+
+    :return: A skill vector holding a latent skill measure for every student, and a question vector holding a difficulty
+    measure for every question.
+    """
+    ks0 = np.maximum(np.sum(R, axis=1), 0.1)
+    kq0 = np.maximum(np.sum(R, axis=0), 0.1)
+    Ms = R.dot((R / kq0).T) / ks0
+    evals, evecs = np.linalg.eig(Ms)
+    i = np.argsort(np.abs(evals))[-2]
+    s = utils.min_max_normalize(np.real(evecs[:, i]))
+
+    Mq = R.T.dot((R / np.expand_dims(ks0, axis=1))) / kq0
+    evals, evecs = np.linalg.eig(Mq)
+    i = np.argsort(np.abs(evals))[-2]
+    q = utils.min_max_normalize(np.real(evecs[:, i]))
+
+    return s, q
+
+
+def lucky_questions(s, q, c):
+    _s = np.expand_dims(s, axis=0)
+    _q = np.expand_dims(q, axis=1)
+    indices = _q > _s
+    bias_num = c * np.sum(np.where(indices, _q, 0), axis=0)
+    bias_denom = c * np.sum(indices, axis=0)
+    return bias_num, bias_denom
+
+
+def lucky_students(s, q, c):
+    _s = np.expand_dims(s, axis=1)
+    _q = np.expand_dims(q, axis=0)
+    indices = _s <= _q
+    bias_num = c * np.sum(np.where(indices, _s, 0), axis=0)
+    bias_denom = c * np.sum(indices, axis=0)
+    return bias_num, bias_denom
+
+
+def iterative_scoring_1(R, c=0.2, threshold=1e-3):
+    # Iterative implementation
+    S, Q = R.shape
+    diff = threshold + 1
+    ks0 = np.maximum(np.sum(R, axis=1), 0.1)
+    kq0 = np.maximum(np.sum(R, axis=0), 0.1)
+    s_prev = ks0 / Q
+    q_prev = (S - kq0) / S
+    while diff > threshold:
+        bias1, bias2 = lucky_questions(s_prev, q_prev, c)
+        denom = np.maximum(ks0 - bias2, 0.1)
+        s = utils.min_max_normalize((1 / denom) * (R.dot(q_prev) - bias1))
+        bias1, bias2 = lucky_students(s_prev, q_prev, c)
+        denom = np.maximum(kq0 - bias2, 0.1)
+        q = utils.min_max_normalize((1 / denom) * (R.T.dot(s_prev) - bias1))
+        diff = max(np.linalg.norm(s - s_prev), np.linalg.norm(q - q_prev))
+        s_prev = s
+        q_prev = q
+
+    return s, q
+
+def iterative_scoring_2(R, c=0.2, threshold=1e-3):
+    S, Q = R.shape
+    diff = threshold + 1
+    ks0 = np.maximum(np.sum(R, axis=1), 1)
+    kq0 = np.maximum(np.sum(R, axis=0), 1)
+    s_prev = ks0 / Q
+    q_prev = (S - kq0) / S
+    while diff > threshold:
+        s = utils.min_max_normalize((1 / ks0) * (R.dot(q_prev) + 1))
+        q = utils.min_max_normalize((1 / kq0) * (R.T.dot(s_prev) + 1))
+        diff = max(np.linalg.norm(s - s_prev), np.linalg.norm(q - q_prev))
+        s_prev = s
+        q_prev = q
+
+    return s, q
+
+
+def iterative_scoring_3(R, c=0.2, threshold=1e-3):
+    S, Q = R.shape
+    diff = threshold + 1
+    ks0 = np.maximum(np.sum(R, axis=1), 1)
+    kq0 = np.maximum(np.sum(R, axis=0), 1)
+    s_prev = ks0 / Q
+    q_prev = (S - kq0) / S
+    while diff > threshold:
+        s = utils.min_max_normalize((1 / ks0) * (R.dot(q_prev)))
+        q = utils.min_max_normalize((1 / kq0) * (R.T.dot(s_prev)))
+        diff = max(np.linalg.norm(s - s_prev), np.linalg.norm(q - q_prev))
+        s_prev = s
+        q_prev = q
+
+    return s, q
