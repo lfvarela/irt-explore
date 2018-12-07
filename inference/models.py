@@ -190,9 +190,7 @@ class RNN_Skills_Model(nn.Module):
         input = self.inp(input.view(1, -1)).unsqueeze(1)
         output, hidden = self.lstm(input, hidden)
         skills = output.squeeze(1)
-        #print(skills.size())
         skills = self.lin(skills.transpose(0,1))
-        #print(skills.size())
         output = self.fe(skills, self.D, self.l,i, self.concepts)
 
         return output, hidden, skills
@@ -205,7 +203,7 @@ class RNN_Skills_Model(nn.Module):
         if steps == 0: steps = len(inputs)
         num_students = inputs.size()[1]
         outputs = Variable(torch.zeros(steps, num_students))
-        #n_skills = Variable(torch.zeros(steps, num_students,self.num_concepts))
+        n_skills = Variable(torch.zeros(steps, num_students,self.num_concepts))
         for i in range(steps):
             if i == 0:
                 input = inputs[i]
@@ -213,6 +211,7 @@ class RNN_Skills_Model(nn.Module):
                 input = output
             output, hidden, skills = self.step(input,i, hidden)
             outputs[i] = output
-            #if self.average:
-             #   n_skills[i] = skills
+            n_skills[i] = skills
+        if self.average:
+            skills = n_skills.mean(dim=0)
         return outputs, hidden, skills, self.D
