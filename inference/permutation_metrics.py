@@ -17,19 +17,18 @@ from scipy.stats import kendalltau as kt
 from scipy.stats import spearmanr as sp
 
 
-def get_ranking(M, weights=None):
+def weighted(M, weights=None):
     """
+    Call this to get a single vector for the s
     :param M: n x X binary matrix of student responses or skills
     :param weights: np array (len M.shape[1] (X)). optional, pass if we want to do a weighted average of the X responses/skills
-    :return: ranking of students (student represented by index) based off number of correct responses.
-    The first element in return is the index of the "best" student
     """
     if weights is None:
         X = M.shape[1]
         weights = np.ones(X) / X
 
-    weighted_skills = M.dot(weights)
-    return np.argsort(weighted_skills)[::-1]
+    weighted_ = M.dot(weights)
+    return weighted_
 
 
 def rank_similarities(A_true, R, A_pred, skill_weights=None, question_weights=None):
@@ -62,14 +61,10 @@ def rank_similarities(A_true, R, A_pred, skill_weights=None, question_weights=No
 
     metric: absolute difference between the average coefficient of the prediction and the baseline.
     """
-    rank_true = get_ranking(A_true, weights=skill_weights)
-    rank_baseline = get_ranking(R, weights=question_weights)
-    rank_pred = get_ranking(A_pred, weights=skill_weights)
-
-    kt_baseline = np.around(kt(rank_true, rank_baseline), decimals=3)
-    sp_baseline = np.around(sp(rank_true, rank_baseline), decimals=3)
-    kt_pred = np.around(kt(rank_true, rank_pred), decimals=3)
-    sp_pred = np.around(sp(rank_true, rank_pred), decimals=3)
+    kt_baseline = np.around(kt(weighted(A_true), weighted(R)), decimals=3)
+    sp_baseline = np.around(sp(weighted(A_true), weighted(R)), decimals=3)
+    kt_pred = np.around(kt(weighted(A_true), weighted(A_pred)), decimals=3)
+    sp_pred = np.around(sp(weighted(A_true), weighted(A_pred)), decimals=3)
 
 
     metric = np.average([kt_pred[0], sp_pred[0]]) - np.average([kt_baseline[0], sp_baseline[0]])
@@ -77,10 +72,16 @@ def rank_similarities(A_true, R, A_pred, skill_weights=None, question_weights=No
         """
         Summary of Ranking Evaluation: 
         The correlations are with the true rankings derived from A_true.
-        For the baseline, we get a Kendall Rank correlation of {}, with p-value of {}, and a Spearman correlation of {}, with p-value of {}. 
-        For the prediction, we get a Kendall Rank correlation of {}, with p-value of {}, and a Spearman correlation of {}, with p-value of {}.  
-        Which gives us an average difference of {} versus the baseline. 
-        """.format(kt_baseline[0], kt_baseline[1], sp_baseline[0], sp_baseline[1], kt_pred[0], kt_pred[1],sp_pred[0] ,sp_pred[1], metric)
+        Baseline: 
+            Kendall:{} (p-value {})
+            Spearman: {} (p-value {}) 
+            
+        Prediction:
+            Kendall: {} (p-value {})
+            Spearman: {} (p-value {})  
+            
+        Average difference: {} (absolute diff., vs. the baseline) 
+        """.format(kt_baseline[0], kt_baseline[1], sp_baseline[0], sp_baseline[1], kt_pred[0], kt_pred[1], sp_pred[0] , sp_pred[1], metric)
 
     d = {
         'summary': string,
@@ -92,6 +93,36 @@ def rank_similarities(A_true, R, A_pred, skill_weights=None, question_weights=No
         'pred': {
             'kendall_tau': { 'correlation': kt_pred[0], 'pvalue': kt_pred[1] },
             'spearman': { 'correlation': sp_pred[0], 'pvalue': sp_pred[1]},
+        }
+    }
+
+    return d
+
+
+def rank_similarities_real(R, A_pred):
+    """
+    See rank_similarities. Difference: validate metrics only with R and A_true.
+    """
+    kt_ = np.around(kt(weighted(A_pred), weighted(R)), decimals=3)
+    sp_ = np.around(sp(weighted(A_pred), weighted(R)), decimals=3)
+
+    metric = np.around(np.average([kt_[0], sp_[0]]), decimals=3)
+    string = \
+        """
+        Summary of Ranking Evaluation: 
+        The correlations are between R and A_pred.
+        Baseline: 
+            Kendall:{} (p-value {})
+            Spearman: {} (p-value {}) 
+        Average Correlation: {}
+        """.format(kt_[0], kt_[1], sp_[0], sp_[1], metric)
+
+    d = {
+        'summary': string,
+        'metric': metric,
+        'results': {
+            'kendall_tau': { 'correlation': kt_[0], 'pvalue': kt_[1] },
+            'spearman': { 'correlation': sp_[0], 'pvalue': sp_[1]},
         }
     }
 
