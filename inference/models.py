@@ -176,7 +176,7 @@ def modal_decomp9(Y, concepts=None):
 
 class RNN_Model(nn.Module):
 
-    def __init__(self, hidden_size, num_students=1000, num_layers=8):
+    def __init__(self, hidden_size, num_students, num_layers=8, dropout = 0.1):
         """
         RNN: linear -> LSTM -> linear -> sigmoid
         :param hidden_size: size for hidden layer of linear layer
@@ -187,7 +187,7 @@ class RNN_Model(nn.Module):
         self.num_layers = num_layers
         self.hidden_size = hidden_size
         self.inp = nn.Linear(num_students, hidden_size)
-        self.lstm = nn.LSTM(hidden_size, hidden_size, num_layers, dropout=0.05)  # TODO: hyperparam dropout?, other?
+        self.lstm = nn.LSTM(hidden_size, hidden_size, num_layers, dropout)  # TODO: hyperparam dropout?, other?
         self.lin = nn.Linear(hidden_size, num_students)
         self.sig = nn.Sigmoid()
         self.num_students = num_students
@@ -206,13 +206,13 @@ class RNN_Model(nn.Module):
         :param inputs: Q x N matrix (questions x students)
         """
         if steps == 0: steps = len(inputs)
-        num_students = inputs.size()[1]
-        outputs = Variable(torch.zeros(steps, num_students))
+        outputs = Variable(torch.zeros(steps, self.num_students))
         for i in range(steps):
-            if i == 0:
-                input = inputs[i]
-            else:
-                input = output
+            #if i == 0:
+             #   input = inputs[i]
+            #else:
+                #input = output
+            input = inputs[i] 
             output, hidden = self.step(input, hidden)
             outputs[i] = output
         return outputs, hidden
@@ -259,7 +259,7 @@ class RNN_Skills_Model(nn.Module):
 
     def __init__(self, average, concepts, num_concepts, num_questions, hidden_size, num_students=1000, num_layers=8, dropout = 0.05, sigmoid = False):
         """
-        RNN: linear -> LSTM -> linear -> FE
+        RNN: linear -> LSTM -> linear -> FE or IRF Sigmoid
         :param concepts: tuple as returned by np.nonzero on questions matrix to get indeces of concepts.
         :param hidden_size: size for hidden layer of linear layer
         :param num_students: number of students
@@ -309,10 +309,11 @@ class RNN_Skills_Model(nn.Module):
         outputs = Variable(torch.zeros(steps, num_students))
         n_skills = Variable(torch.zeros(steps, num_students,self.num_concepts))
         for i in range(steps):
-            if i == 0:
-                input = inputs[i]
-            else:
-                input = output
+            #if i == 0:
+                #input = inputs[i]
+            #else:
+                #input = output
+            input = inputs[i]
             output, hidden, skills = self.step(input,i, hidden)
             outputs[i] = output
             n_skills[i] = skills
