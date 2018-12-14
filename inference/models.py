@@ -230,10 +230,7 @@ class FE(nn.Module):
         :param x: Not used. Required by torch architecture.
         :return: Predictions for the entire batch.
         """
-        #print(A[:, concepts[1]])
-        #print(concepts[1])
-        #print(D[concepts][i])
-        #print(l.size())
+        
         return floored_exp_irf(A[:, concepts[1][i]], D[concepts][i], l, guess_prob)
 
 class SIG(nn.Module):
@@ -248,10 +245,7 @@ class SIG(nn.Module):
         :param x: Not used. Required by torch architecture.
         :return: Predictions for the entire batch.
         """
-        #print(A[:, concepts[1]])
-        #print(concepts[1])
-        #print(D[concepts][i])
-        #print(l.size())
+        
         return two_param_sigmoid_irf(A[:, concepts[1][i]], D[concepts][i], guess_prob)
 
 
@@ -292,6 +286,13 @@ class RNN_Skills_Model(nn.Module):
         output, hidden = self.lstm(input, hidden)
         skills = output.squeeze(1)
         skills = self.lin(skills.transpose(0,1))
+        
+        #skills = torch.clamp(skills, min = 0, max = 1)
+        #self.D = torch.clamp(self.D, 0, 1)
+        
+        skills = (skills - skills.min())/(skills.max()-skills.min())
+        #self.D = (self.D - self.D.min())/(self.D.max()-self.D.min())
+        
         if self.sigmoid:
             output = self.irf_sig(skills, self.D, i, self.concepts)
         else:
@@ -310,9 +311,9 @@ class RNN_Skills_Model(nn.Module):
         n_skills = Variable(torch.zeros(steps, num_students,self.num_concepts))
         for i in range(steps):
             #if i == 0:
-                #input = inputs[i]
+            #    input = inputs[i]
             #else:
-                #input = output
+            #    input = output
             input = inputs[i]
             output, hidden, skills = self.step(input,i, hidden)
             outputs[i] = output
