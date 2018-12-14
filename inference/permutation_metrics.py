@@ -61,17 +61,17 @@ def rank_similarities(A_true, R, A_pred, skill_weights=None, question_weights=No
 
     metric: absolute difference between the average coefficient of the prediction and the baseline.
     """
-    kt_baseline = np.around(kt(weighted(A_true), weighted(R)), decimals=3)
-    sp_baseline = np.around(sp(weighted(A_true), weighted(R)), decimals=3)
-    kt_pred = np.around(kt(weighted(A_true), weighted(A_pred)), decimals=3)
-    sp_pred = np.around(sp(weighted(A_true), weighted(A_pred)), decimals=3)
+    kt_baseline = np.around(kt(weighted(A_true, skill_weights), weighted(R)), decimals=3)
+    sp_baseline = np.around(sp(weighted(A_true, skill_weights), weighted(R)), decimals=3)
+    kt_pred = np.around(kt(weighted(A_true, skill_weights), weighted(A_pred, skill_weights)), decimals=3)
+    sp_pred = np.around(sp(weighted(A_true, skill_weights), weighted(A_pred, skill_weights)), decimals=3)
 
 
-    metric = np.average([kt_pred[0], sp_pred[0]]) - np.average([kt_baseline[0], sp_baseline[0]])
+    metric = np.around(np.average([kt_pred[0], sp_pred[0]]) - np.average([kt_baseline[0], sp_baseline[0]]), decimals=3)
     string = \
-        """
-        Summary of Ranking Evaluation: 
-        The correlations are with the true rankings derived from A_true.
+    """
+    Summary of Ranking Evaluation: 
+    Correlations with true rankings derived from A_true.
         Baseline: 
             Kendall:{} (p-value {})
             Spearman: {} (p-value {}) 
@@ -80,8 +80,8 @@ def rank_similarities(A_true, R, A_pred, skill_weights=None, question_weights=No
             Kendall: {} (p-value {})
             Spearman: {} (p-value {})  
             
-        Average difference: {} (absolute diff., vs. the baseline) 
-        """.format(kt_baseline[0], kt_baseline[1], sp_baseline[0], sp_baseline[1], kt_pred[0], kt_pred[1], sp_pred[0] , sp_pred[1], metric)
+    Average difference: {} (absolute diff., vs. the baseline) 
+    """.format(kt_baseline[0], kt_baseline[1], sp_baseline[0], sp_baseline[1], kt_pred[0], kt_pred[1], sp_pred[0] , sp_pred[1], metric)
 
     d = {
         'summary': string,
@@ -103,19 +103,21 @@ def rank_similarities_real(R, A_pred):
     """
     See rank_similarities. Difference: validate metrics only with R and A_true.
     """
-    kt_ = np.around(kt(weighted(A_pred), weighted(R)), decimals=3)
-    sp_ = np.around(sp(weighted(A_pred), weighted(R)), decimals=3)
+    kt_ = np.around(kt(A_pred, weighted(R)), decimals=3)
+    sp_ = np.around(sp(A_pred, weighted(R)), decimals=3)
 
     metric = np.around(np.average([kt_[0], sp_[0]]), decimals=3)
     string = \
-        """
-        Summary of Ranking Evaluation: 
-        The correlations are between R and A_pred.
+    """
+    Summary of Ranking Evaluation:
+    Correlations between R and A_pred.
+    
         Baseline: 
             Kendall:{} (p-value {})
             Spearman: {} (p-value {}) 
+            
         Average Correlation: {}
-        """.format(kt_[0], kt_[1], sp_[0], sp_[1], metric)
+    """.format(kt_[0], kt_[1], sp_[0], sp_[1], metric)
 
     d = {
         'summary': string,

@@ -44,10 +44,9 @@ def train(model, optim, epochs, Y):
         # Forward pass: compute predicted y
 
         scores = model(Y)
-        print(scores[0].shape)
 
         # Compute and print loss
-        loss = f.binary_cross_entropy(scores[0], Y)
+        loss = f.binary_cross_entropy(scores, Y)
 
         preds = (scores > 0.5).int()
 
