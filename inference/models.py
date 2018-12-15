@@ -7,13 +7,6 @@ from torch.autograd import Variable
 
 
 def two_param_sigmoid_irf(a, d, c):
-    """
-
-    :param a:
-    :param d:
-    :param c:
-    :return:
-    """
     return c + (1 - c) * torch.sigmoid(a - d)
 
 
